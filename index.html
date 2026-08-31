@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>PnL Calendar</title>
+<style>
+  :root{
+    --bg:        #14181c;
+    --panel:     #1c2127;
+    --panel-2:   #20262d;
+    --line:      #2a3038;
+    --text:      #e8eaed;
+    --muted:     #8b95a1;
+    --faint:     #4c5560;
+    --gain:      #6fa88a;
+    --gain-dim:  #3f5c4d;
+    --loss:      #c1694f;
+    --loss-dim:  #5c3c30;
+    --accent:    #d4a24e;
+    --radius:    10px;
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .num{
+    font-family:ui-monospace,"SF Mono","IBM Plex Mono","Cascadia Code",Menlo,Consolas,monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  #app{
+    max-width:460px;
+    margin:0 auto;
+    padding:18px 14px 40px;
+    min-height:100vh;
+  }
+
+  /* ---------- header ---------- */
+  .eyebrow{
+    font-size:11px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--faint);
+    margin:0 0 4px;
+  }
+  .top-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:4px;
+  }
+  .currency-wrap{
+    position:relative;
+    flex:none;
+  }
+  .currency-pill{
+    display:flex; align-items:center; gap:5px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    border-radius:999px;
+    padding:4px 8px 4px 10px;
+    font-size:11px;
+    color:var(--muted);
+    cursor:pointer;
+    user-select:none;
+  }
+  .currency-pill .code{
+    color:var(--text);
+    font-weight:600;
+    letter-spacing:.02em;
+  }
+  .currency-pill .chev{
+    font-size:9px;
+    color:var(--faint);
+  }
+  #currencySelect{
+    position:absolute;
+    inset:0;
+    opacity:0;
+    width:100%;
+    height:100%;
+    border:none;
+    cursor:pointer;
+  }
+  .month-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .month-title{
+    font-size:22px;
+    font-weight:650;
+    letter-spacing:-0.01em;
+  }
+  .nav-btn{
+    width:34px; height:34px;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    color:var(--text);
+    font-size:16px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    user-select:none;
+  }
+  .nav-btn:active{ background:var(--panel-2); }
+  .nav-btn.today{
+    width:auto; padding:0 10px;
+    font-size:11px; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--muted);
+  }
+
+  /* ---------- summary ---------- */
+  .summary{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    overflow:hidden;
+    margin-bottom:18px;
+  }
+  .stat{
+    background:var(--panel);
+    padding:10px 6px;
+    text-align:center;
+  }
+  .stat-label{
+    font-size:9.5px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--faint);
+    margin-bottom:4px;
+  }
+  .stat-value{
+    font-size:14px;
+    font-weight:600;
+  }
+  .stat-value.pos{ color:var(--gain); }
+  .stat-value.neg{ color:var(--loss); }
+
+  .streak-bar{
+    display:flex; align-items:center; gap:8px;
+    padding:9px 12px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    margin-bottom:18px;
+    font-size:12px;
+    color:var(--muted);
+  }
+  .streak-dot{
+    width:7px; height:7px; border-radius:50%;
+    background:var(--accent);
+    flex:none;
+  }
+
+  /* ---------- calendar ---------- */
+  .weekdays{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    margin-bottom:6px;
+  }
+  .weekdays div{
+    text-align:center;
+    font-size:10px;
+    letter-spacing:.04em;
+    color:var(--faint);
+    text-transform:uppercase;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:4px;
+  }
+  .cell{
+    position:relative;
+    aspect-ratio:1/1;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    overflow:hidden;
+    cursor:pointer;
+  }
+  .cell.pad{ visibility:hidden; pointer-events:none; }
+  .cell.today{ border-color:var(--accent); }
+  .cell .daynum{
+    position:absolute; top:4px; left:5px;
+    font-size:10px;
+    color:var(--faint);
+  }
+  .cell.has-entry .daynum{ color:rgba(232,234,237,.55); }
+  .cell .amt{
+    position:absolute;
+    left:0; right:0; bottom:9px;
+    text-align:center;
+    font-size:10.5px;
+    font-weight:600;
+    line-height:1;
+  }
+  .cell .amt.pos{ color:var(--gain); }
+  .cell .amt.neg{ color:var(--loss); }
+  .cell .mag{
+    position:absolute;
+    left:3px; right:3px; bottom:3px;
+    height:3px;
+    border-radius:2px;
+    background:var(--line);
+  }
+  .cell .mag-fill{
+    height:100%;
+    border-radius:2px;
+  }
+  .cell:active{ filter:brightness(1.15); }
+
+  /* ---------- empty state ---------- */
+  .empty-hint{
+    text-align:center;
+    color:var(--faint);
+    font-size:11.5px;
+    margin-top:16px;
+    line-height:1.5;
+  }
+
+  /* ---------- sheet ---------- */
+  .scrim{
+    position:fixed; inset:0;
+    background:rgba(10,12,14,.55);
+    display:none;
+    align-items:flex-end;
+    z-index:10;
+  }
+  .scrim.open{ display:flex; }
+  .sheet{
+    width:100%;
+    max-width:460px;
+    margin:0 auto;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-bottom:none;
+    border-radius:16px 16px 0 0;
+    padding:18px 18px calc(18px + env(safe-area-inset-bottom));
+    transform:translateY(0);
+  }
+  .sheet-handle{
+    width:36px; height:4px; border-radius:2px;
+    background:var(--line);
+    margin:0 auto 14px;
+  }
+  .sheet-date{
+    font-size:13px;
+    color:var(--muted);
+    margin-bottom:14px;
+  }
+  .field-label{
+    font-size:10.5px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    color:var(--faint);
+    margin-bottom:6px;
+    display:block;
+  }
+  .amount-row{
+    display:flex; align-items:stretch; gap:8px;
+    margin-bottom:14px;
+  }
+  .sign-toggle{
+    display:flex;
+    border:1px solid var(--line);
+    border-radius:8px;
+    overflow:hidden;
+    flex:none;
+  }
+  .sign-toggle button{
+    width:38px;
+    border:none;
+    background:var(--panel-2);
+    color:var(--muted);
+    font-size:16px;
+    cursor:pointer;
+  }
+  .sign-toggle button.active.plus{ background:var(--gain-dim); color:var(--gain); }
+  .sign-toggle button.active.minus{ background:var(--loss-dim); color:var(--loss); }
+  #amountInput{
+    flex:1;
+    min-width:0;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    color:var(--text);
+    font-size:20px;
+    padding:8px 10px;
+  }
+  #noteInput{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    color:var(--text);
+    font-size:13.5px;
+    font-family:inherit;
+    padding:9px 10px;
+    resize:none;
+    margin-bottom:16px;
+  }
+  .sheet-actions{
+    display:flex; gap:8px;
+  }
+  .btn{
+    flex:1;
+    border:none;
+    border-radius:8px;
+    padding:12px 0;
+    font-size:13.5px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .btn-save{ background:var(--accent); color:#1a1508; }
+  .btn-delete{ background:var(--panel-2); color:var(--loss); border:1px solid var(--line); }
+  .btn-cancel{ background:transparent; color:var(--muted); border:1px solid var(--line); flex:none; width:64px; }
+
+  .status{
+    text-align:center;
+    color:var(--faint);
+    font-size:11px;
+    padding:30px 0;
+  }
+
+  /* ---------- menu ---------- */
+  .menu-btn{
+    width:32px; height:32px;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    color:var(--text);
+    font-size:14px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    flex:none;
+  }
+  .menu-sheet .menu-item{
+    display:flex; align-items:center; gap:10px;
+    padding:13px 4px;
+    font-size:14px;
+    color:var(--text);
+    cursor:pointer;
+    border-bottom:1px solid var(--line);
+  }
+  .menu-sheet .menu-item:last-child{ border-bottom:none; }
+  .menu-sheet .menu-item .ic{
+    width:20px; text-align:center;
+    color:var(--muted);
+  }
+  .menu-sheet .menu-item.active{ color:var(--accent); }
+  .menu-sheet .menu-item.active .ic{ color:var(--accent); }
+
+  /* ---------- analytics ---------- */
+  .dash-section{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:14px;
+    margin-bottom:14px;
+  }
+  .dash-title{
+    font-size:11px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--faint);
+    margin:0 0 12px;
+  }
+  .dash-stats{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:10px 8px;
+  }
+  .dash-stat-label{
+    font-size:9.5px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    color:var(--faint);
+    margin-bottom:3px;
+  }
+  .dash-stat-value{
+    font-size:15px;
+    font-weight:600;
+  }
+  .dash-stat-value.pos{ color:var(--gain); }
+  .dash-stat-value.neg{ color:var(--loss); }
+  .equity-wrap svg{ display:block; width:100%; height:auto; }
+  .equity-caption{
+    display:flex; justify-content:space-between;
+    font-size:10px; color:var(--faint);
+    margin-top:6px;
+  }
+  .bar-row{
+    display:flex; align-items:center; gap:8px;
+    margin-bottom:7px;
+    font-size:11px;
+  }
+  .bar-row .bar-label{
+    width:34px; flex:none;
+    color:var(--muted);
+  }
+  .bar-row .bar-track{
+    flex:1; height:14px;
+    background:var(--panel-2);
+    border-radius:4px;
+    position:relative;
+    overflow:hidden;
+  }
+  .bar-row .bar-fill{
+    position:absolute; top:0; bottom:0;
+    border-radius:4px;
+  }
+  .bar-row .bar-fill.from-center{ left:50%; }
+  .bar-row .bar-val{
+    width:58px; flex:none;
+    text-align:right;
+  }
+  .dash-empty{
+    text-align:center;
+    color:var(--faint);
+    font-size:11.5px;
+    padding:20px 8px;
+    line-height:1.5;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top-row">
+    <button class="menu-btn" id="menuBtn">☰</button>
+    <p class="eyebrow" id="viewLabel" style="margin:0;">Trading Journal</p>
+    <div class="currency-wrap">
+      <div class="currency-pill">
+        <span class="sym" id="currencySym">$</span>
+        <span class="code" id="currencyCode">USD</span>
+        <span class="chev">▾</span>
+        <select id="currencySelect"></select>
+      </div>
+    </div>
+  </div>
+
+  <div id="calendarView">
+    <div class="month-row">
+      <button class="nav-btn" id="prevBtn">‹</button>
+      <div class="month-title" id="monthTitle">—</div>
+      <button class="nav-btn" id="nextBtn">›</button>
+    </div>
+
+    <div class="summary" id="summary"></div>
+    <div class="streak-bar" id="streakBar" style="display:none;">
+      <div class="streak-dot"></div>
+      <div id="streakText"></div>
+    </div>
+
+    <div class="weekdays">
+      <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="empty-hint" id="emptyHint" style="display:none;">Tap a day to log a trading result. Data is saved in this browser.</div>
+  </div>
+
+  <div id="analyticsView" style="display:none;"></div>
+</div>
+
+<div class="scrim" id="menuScrim">
+  <div class="sheet menu-sheet">
+    <div class="sheet-handle"></div>
+    <div class="menu-item active" data-view="calendar"><span class="ic">📅</span> Calendar</div>
+    <div class="menu-item" data-view="analytics"><span class="ic">📊</span> Analytics dashboard</div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-date" id="sheetDate">—</div>
+
+    <span class="field-label">Result</span>
+    <div class="amount-row">
+      <div class="sign-toggle">
+        <button type="button" id="plusBtn" class="plus">+</button>
+        <button type="button" id="minusBtn" class="minus">−</button>
+      </div>
+      <input id="amountInput" type="number" inputmode="decimal" placeholder="0" min="0" step="any">
+    </div>
+
+    <span class="field-label">Note (optional)</span>
+    <textarea id="noteInput" rows="2" placeholder="Setup, pair, mistake, lesson…"></textarea>
+
+    <div class="sheet-actions">
+      <button class="btn btn-cancel" id="cancelBtn">Close</button>
+      <button class="btn btn-delete" id="deleteBtn">Delete</button>
+      <button class="btn btn-save" id="saveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'pnl-entries';
+  const CURRENCY_KEY = 'pnl-currency';
+  const CURRENCIES = [
+    { code:'USD', symbol:'$',   label:'US Dollar' },
+    { code:'EUR', symbol:'€',   label:'Euro' },
+    { code:'GBP', symbol:'£',   label:'British Pound' },
+    { code:'JPY', symbol:'¥',   label:'Japanese Yen' },
+    { code:'AUD', symbol:'A$',  label:'Australian Dollar' },
+    { code:'CAD', symbol:'C$',  label:'Canadian Dollar' },
+    { code:'NZD', symbol:'NZ$', label:'New Zealand Dollar' },
+    { code:'CHF', symbol:'Fr',  label:'Swiss Franc' },
+    { code:'CNY', symbol:'¥',   label:'Chinese Yuan' },
+    { code:'INR', symbol:'₹',   label:'Indian Rupee' },
+    { code:'NGN', symbol:'₦',   label:'Nigerian Naira' },
+    { code:'ZAR', symbol:'R',   label:'South African Rand' },
+  ];
+  let currency = CURRENCIES[0];
+  const currencySelect = document.getElementById('currencySelect');
+  const currencySym = document.getElementById('currencySym');
+  const currencyCode = document.getElementById('currencyCode');
+
+  CURRENCIES.forEach(c=>{
+    const opt = document.createElement('option');
+    opt.value = c.code;
+    opt.textContent = `${c.code} — ${c.label}`;
+    currencySelect.appendChild(opt);
+  });
+
+  function applyCurrencyToUI(){
+    currencySym.textContent = currency.symbol;
+    currencyCode.textContent = currency.code;
+    currencySelect.value = currency.code;
+  }
+
+  async function loadCurrency(){
+    try{
+      const saved = localStorage.getItem(CURRENCY_KEY);
+      const found = saved ? CURRENCIES.find(c=>c.code===saved) : null;
+      if(found) currency = found;
+    }catch(e){ /* default stays USD */ }
+    applyCurrencyToUI();
+  }
+
+  currencySelect.addEventListener('change', async ()=>{
+    const found = CURRENCIES.find(c=>c.code===currencySelect.value);
+    if(found){
+      currency = found;
+      applyCurrencyToUI();
+      render();
+      try{ localStorage.setItem(CURRENCY_KEY, currency.code); }
+      catch(e){ console.error('currency save failed', e); }
+    }
+  });
+
+  const grid = document.getElementById('grid');
+  const monthTitle = document.getElementById('monthTitle');
+  const summaryEl = document.getElementById('summary');
+  const streakBar = document.getElementById('streakBar');
+  const streakText = document.getElementById('streakText');
+  const emptyHint = document.getElementById('emptyHint');
+  const scrim = document.getElementById('scrim');
+  const sheetDate = document.getElementById('sheetDate');
+  const amountInput = document.getElementById('amountInput');
+  const noteInput = document.getElementById('noteInput');
+  const plusBtn = document.getElementById('plusBtn');
+  const minusBtn = document.getElementById('minusBtn');
+
+  let entries = {};       // { "YYYY-MM-DD": { amount: number, note: string } }
+  let loaded = false;
+  let cursor = new Date(); cursor.setDate(1);
+  let activeKey = null;
+  let sign = 1;
+
+  const todayKey = fmtKey(new Date());
+
+  function fmtKey(d){
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function money(n){
+    const abs = Math.abs(n);
+    const s = abs % 1 === 0 ? abs.toFixed(0) : abs.toFixed(2);
+    return (n<0?'-':n>0?'+':'') + currency.symbol + s;
+  }
+
+  async function loadEntries(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      entries = raw ? JSON.parse(raw) : {};
+    }catch(e){
+      entries = {};
+    }
+    loaded = true;
+    render();
+  }
+
+  async function persist(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    }catch(e){
+      console.error('storage save failed', e);
+    }
+  }
+
+  function monthEntries(){
+    const y = cursor.getFullYear(), m = cursor.getMonth();
+    const out = [];
+    for(const k in entries){
+      const d = new Date(k+'T00:00:00');
+      if(d.getFullYear()===y && d.getMonth()===m) out.push([k, entries[k]]);
+    }
+    return out;
+  }
+
+  function render(){
+    if(!loaded){
+      grid.innerHTML = '<div class="status" style="grid-column:1/-1;">Loading…</div>';
+      return;
+    }
+    monthTitle.textContent = cursor.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+    renderGrid();
+    renderSummary();
+    renderStreak();
+  }
+
+  function renderGrid(){
+    grid.innerHTML = '';
+    const y = cursor.getFullYear(), m = cursor.getMonth();
+    const firstDow = new Date(y,m,1).getDay();
+    const daysInMonth = new Date(y,m+1,0).getDate();
+
+    const me = monthEntries();
+    const maxAbs = me.reduce((mx,[,v])=>Math.max(mx, Math.abs(v.amount)), 0) || 1;
+
+    for(let i=0;i<firstDow;i++){
+      const pad = document.createElement('div');
+      pad.className = 'cell pad';
+      grid.appendChild(pad);
+    }
+
+    for(let day=1; day<=daysInMonth; day++){
+      const d = new Date(y,m,day);
+      const key = fmtKey(d);
+      const entry = entries[key];
+      const cell = document.createElement('div');
+      cell.className = 'cell' + (entry?' has-entry':'') + (key===todayKey?' today':'');
+      cell.dataset.key = key;
+
+      const num = document.createElement('div');
+      num.className = 'daynum num';
+      num.textContent = day;
+      cell.appendChild(num);
+
+      if(entry){
+        const intensity = Math.min(1, Math.abs(entry.amount)/maxAbs);
+        const isPos = entry.amount >= 0;
+        const base = isPos ? [111,168,138] : [193,105,79];
+        const alpha = 0.12 + 0.5*intensity;
+        cell.style.background = `rgba(${base[0]},${base[1]},${base[2]},${alpha})`;
+
+        const amt = document.createElement('div');
+        amt.className = 'amt num ' + (isPos?'pos':'neg');
+        amt.textContent = money(entry.amount);
+        cell.appendChild(amt);
+
+        const mag = document.createElement('div');
+        mag.className = 'mag';
+        const fill = document.createElement('div');
+        fill.className = 'mag-fill';
+        fill.style.width = (intensity*100)+'%';
+        fill.style.background = isPos ? 'var(--gain)' : 'var(--loss)';
+        fill.style.marginLeft = 'auto';
+        mag.appendChild(fill);
+        cell.appendChild(mag);
+      }
+
+      cell.addEventListener('click', ()=>openSheet(key));
+      grid.appendChild(cell);
+    }
+
+    emptyHint.style.display = Object.keys(entries).length===0 ? 'block' : 'none';
+  }
+
+  function renderSummary(){
+    const me = monthEntries();
+    const total = me.reduce((s,[,v])=>s+v.amount,0);
+    const wins = me.filter(([,v])=>v.amount>0);
+    const losses = me.filter(([,v])=>v.amount<0);
+    const winRate = me.length ? Math.round((wins.length/me.length)*100) : 0;
+    const avgWin = wins.length ? wins.reduce((s,[,v])=>s+v.amount,0)/wins.length : 0;
+    const avgLoss = losses.length ? losses.reduce((s,[,v])=>s+v.amount,0)/losses.length : 0;
+
+    const stats = [
+      { label:'Total', value: money(total), cls: total>0?'pos':total<0?'neg':'' },
+      { label:'Win rate', value: me.length ? winRate+'%' : '—', cls:'' },
+      { label:'Avg win', value: wins.length ? money(avgWin) : '—', cls:'pos' },
+      { label:'Avg loss', value: losses.length ? money(avgLoss) : '—', cls:'neg' },
+    ];
+
+    summaryEl.innerHTML = '';
+    stats.forEach(s=>{
+      const el = document.createElement('div');
+      el.className = 'stat';
+      el.innerHTML = `<div class="stat-label">${s.label}</div><div class="stat-value num ${s.cls}">${s.value}</div>`;
+      summaryEl.appendChild(el);
+    });
+  }
+
+  function renderStreak(){
+    const keys = Object.keys(entries).sort();
+    if(keys.length===0){ streakBar.style.display='none'; return; }
+    let streak = 0, dir = 0;
+    for(let i=keys.length-1;i>=0;i--){
+      const amt = entries[keys[i]].amount;
+      const d = amt>0?1:amt<0?-1:0;
+      if(d===0) break;
+      if(dir===0){ dir=d; streak=1; }
+      else if(d===dir){ streak++; }
+      else break;
+    }
+    if(streak===0){ streakBar.style.display='none'; return; }
+    streakBar.style.display='flex';
+    streakText.textContent = dir>0
+      ? `${streak} winning day${streak>1?'s':''} in a row`
+      : `${streak} losing day${streak>1?'s':''} in a row — worth a breather before the next entry.`;
+  }
+
+  function openSheet(key){
+    activeKey = key;
+    const d = new Date(key+'T00:00:00');
+    sheetDate.textContent = d.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
+    const existing = entries[key];
+    sign = existing && existing.amount < 0 ? -1 : 1;
+    amountInput.value = existing ? Math.abs(existing.amount) : '';
+    noteInput.value = existing ? (existing.note||'') : '';
+    updateSignButtons();
+    document.getElementById('deleteBtn').style.display = existing ? 'block' : 'none';
+    scrim.classList.add('open');
+    setTimeout(()=>amountInput.focus(), 50);
+  }
+
+  function closeSheet(){
+    scrim.classList.remove('open');
+    activeKey = null;
+  }
+
+  function updateSignButtons(){
+    plusBtn.classList.toggle('active', sign===1);
+    minusBtn.classList.toggle('active', sign===-1);
+  }
+
+  plusBtn.addEventListener('click', ()=>{ sign=1; updateSignButtons(); });
+  minusBtn.addEventListener('click', ()=>{ sign=-1; updateSignButtons(); });
+  document.getElementById('cancelBtn').addEventListener('click', closeSheet);
+  scrim.addEventListener('click', (e)=>{ if(e.target===scrim) closeSheet(); });
+
+  document.getElementById('saveBtn').addEventListener('click', async ()=>{
+    const raw = parseFloat(amountInput.value);
+    if(isNaN(raw)){ amountInput.focus(); return; }
+    entries[activeKey] = { amount: sign*Math.abs(raw), note: noteInput.value.trim() };
+    closeSheet();
+    render();
+    if(currentView==='analytics') renderAnalytics();
+    await persist();
+  });
+
+  document.getElementById('deleteBtn').addEventListener('click', async ()=>{
+    delete entries[activeKey];
+    closeSheet();
+    render();
+    if(currentView==='analytics') renderAnalytics();
+    await persist();
+  });
+
+  document.getElementById('prevBtn').addEventListener('click', ()=>{
+    cursor.setMonth(cursor.getMonth()-1); render();
+  });
+  document.getElementById('nextBtn').addEventListener('click', ()=>{
+    cursor.setMonth(cursor.getMonth()+1); render();
+  });
+
+  /* ---------- menu / views ---------- */
+  const menuBtn = document.getElementById('menuBtn');
+  const menuScrim = document.getElementById('menuScrim');
+  const calendarView = document.getElementById('calendarView');
+  const analyticsView = document.getElementById('analyticsView');
+  const viewLabel = document.getElementById('viewLabel');
+  let currentView = 'calendar';
+
+  menuBtn.addEventListener('click', ()=> menuScrim.classList.add('open'));
+  menuScrim.addEventListener('click', (e)=>{ if(e.target===menuScrim) menuScrim.classList.remove('open'); });
+
+  document.querySelectorAll('.menu-item').forEach(item=>{
+    item.addEventListener('click', ()=>{
+      currentView = item.dataset.view;
+      document.querySelectorAll('.menu-item').forEach(i=>i.classList.toggle('active', i===item));
+      menuScrim.classList.remove('open');
+      if(currentView==='calendar'){
+        viewLabel.textContent = 'Trading Journal';
+        calendarView.style.display = 'block';
+        analyticsView.style.display = 'none';
+        render();
+      }else{
+        viewLabel.textContent = 'Analytics';
+        calendarView.style.display = 'none';
+        analyticsView.style.display = 'block';
+        renderAnalytics();
+      }
+    });
+  });
+
+  /* ---------- analytics ---------- */
+  function allEntriesSorted(){
+    return Object.keys(entries).sort().map(k=>[k, entries[k]]);
+  }
+
+  function computeStats(all){
+    const wins = all.filter(([,v])=>v.amount>0);
+    const losses = all.filter(([,v])=>v.amount<0);
+    const grossWin = wins.reduce((s,[,v])=>s+v.amount,0);
+    const grossLoss = Math.abs(losses.reduce((s,[,v])=>s+v.amount,0));
+    const total = grossWin - grossLoss;
+    const winRate = all.length ? Math.round((wins.length/all.length)*100) : 0;
+    const profitFactor = grossLoss>0 ? (grossWin/grossLoss) : (grossWin>0 ? Infinity : 0);
+    const expectancy = all.length ? total/all.length : 0;
+    let best = null, worst = null;
+    all.forEach(([k,v])=>{
+      if(best===null || v.amount>best[1].amount) best=[k,v];
+      if(worst===null || v.amount<worst[1].amount) worst=[k,v];
+    });
+    let bestStreak=0, worstStreak=0, curStreak=0, curDir=0;
+    all.forEach(([,v])=>{
+      const d = v.amount>0?1:v.amount<0?-1:0;
+      if(d===0){ curStreak=0; curDir=0; return; }
+      if(d===curDir){ curStreak++; } else { curDir=d; curStreak=1; }
+      if(d>0) bestStreak = Math.max(bestStreak, curStreak);
+      else worstStreak = Math.max(worstStreak, curStreak);
+    });
+    return { totalTrades: all.length, wins: wins.length, losses: losses.length, winRate,
+      profitFactor, expectancy, total, best, worst, bestStreak, worstStreak };
+  }
+
+  function dowStats(all){
+    const buckets = Array.from({length:7}, ()=>({ sum:0, count:0 }));
+    all.forEach(([k,v])=>{
+      const dow = new Date(k+'T00:00:00').getDay();
+      buckets[dow].sum += v.amount;
+      buckets[dow].count++;
+    });
+    return buckets.map(b=>({ ...b, avg: b.count? b.sum/b.count : 0 }));
+  }
+
+  function monthlyStats(all, limit){
+    const map = {};
+    all.forEach(([k,v])=>{
+      const mKey = k.slice(0,7);
+      map[mKey] = (map[mKey]||0) + v.amount;
+    });
+    const keys = Object.keys(map).sort();
+    return keys.slice(-limit).map(k=>{
+      const d = new Date(k+'-01T00:00:00');
+      return { label: d.toLocaleDateString(undefined,{month:'short'}), total: map[k] };
+    });
+  }
+
+  function equitySvg(all){
+    const w = 320, h = 110, pad = 6;
+    let cum = 0;
+    const pts = all.map(([,v])=>{ cum += v.amount; return cum; });
+    const min = Math.min(0, ...pts), max = Math.max(0, ...pts);
+    const range = (max-min) || 1;
+    const stepX = pts.length>1 ? (w-2*pad)/(pts.length-1) : 0;
+    const coords = pts.map((y,i)=>{
+      const px = pad + i*stepX;
+      const py = h - pad - ((y-min)/range)*(h-2*pad);
+      return [px,py];
+    });
+    const linePath = coords.map((p,i)=> (i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+    const zeroY = h - pad - ((0-min)/range)*(h-2*pad);
+    const areaPath = linePath + ` L${coords[coords.length-1][0].toFixed(1)},${zeroY.toFixed(1)} L${coords[0][0].toFixed(1)},${zeroY.toFixed(1)} Z`;
+    const finalUp = cum >= 0;
+    const lineColor = finalUp ? '#6fa88a' : '#c1694f';
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+      <line x1="${pad}" y1="${zeroY.toFixed(1)}" x2="${w-pad}" y2="${zeroY.toFixed(1)}" stroke="#2a3038" stroke-width="1" stroke-dasharray="3,3"/>
+      <path d="${areaPath}" fill="${lineColor}" opacity="0.14" stroke="none"/>
+      <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>`;
+  }
+
+  function renderAnalytics(){
+    const all = allEntriesSorted();
+    if(all.length===0){
+      analyticsView.innerHTML = `<div class="dash-section"><div class="dash-empty">No entries yet. Log a few days on the calendar and your analytics will show up here.</div></div>`;
+      return;
+    }
+    const s = computeStats(all);
+    const dow = dowStats(all);
+    const months = monthlyStats(all, 6);
+    const dowNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const maxDowAbs = Math.max(1, ...dow.map(b=>Math.abs(b.avg)));
+    const maxMonthAbs = Math.max(1, ...months.map(m=>Math.abs(m.total)));
+
+    analyticsView.innerHTML = `
+      <div class="dash-section equity-wrap">
+        <div class="dash-title">Equity curve</div>
+        ${equitySvg(all)}
+        <div class="equity-caption">
+          <span>${all[0][0]}</span>
+          <span class="num ${s.total>=0?'pos':'neg'}" style="color:${s.total>=0?'var(--gain)':'var(--loss)'}">${money(s.total)}</span>
+        </div>
+      </div>
+
+      <div class="dash-section">
+        <div class="dash-title">Performance</div>
+        <div class="dash-stats">
+          <div><div class="dash-stat-label">Trades logged</div><div class="dash-stat-value num">${s.totalTrades}</div></div>
+          <div><div class="dash-stat-label">Win rate</div><div class="dash-stat-value num">${s.winRate}%</div></div>
+          <div><div class="dash-stat-label">Profit factor</div><div class="dash-stat-value num">${isFinite(s.profitFactor)? s.profitFactor.toFixed(2) : '∞'}</div></div>
+          <div><div class="dash-stat-label">Expectancy / day</div><div class="dash-stat-value num ${s.expectancy>=0?'pos':'neg'}">${money(s.expectancy)}</div></div>
+          <div><div class="dash-stat-label">Best day</div><div class="dash-stat-value num pos">${s.best?money(s.best[1].amount):'—'}</div></div>
+          <div><div class="dash-stat-label">Worst day</div><div class="dash-stat-value num neg">${s.worst?money(s.worst[1].amount):'—'}</div></div>
+          <div><div class="dash-stat-label">Best streak</div><div class="dash-stat-value num pos">${s.bestStreak} day${s.bestStreak===1?'':'s'}</div></div>
+          <div><div class="dash-stat-label">Worst streak</div><div class="dash-stat-value num neg">${s.worstStreak} day${s.worstStreak===1?'':'s'}</div></div>
+        </div>
+      </div>
+
+      <div class="dash-section">
+        <div class="dash-title">By day of week (avg)</div>
+        ${dowNames.map((name,i)=>{
+          const b = dow[i];
+          const pct = Math.min(100, (Math.abs(b.avg)/maxDowAbs)*50);
+          const isPos = b.avg>=0;
+          return `<div class="bar-row">
+            <div class="bar-label">${name}</div>
+            <div class="bar-track">
+              <div class="bar-fill ${isPos?'':'from-center'}" style="
+                ${isPos ? `left:50%; width:${pct}%;` : `right:50%; width:${pct}%;`}
+                background:${isPos?'var(--gain)':'var(--loss)'};"></div>
+            </div>
+            <div class="bar-val num ${b.count? (isPos?'pos':'neg') : ''}">${b.count? money(b.avg) : '—'}</div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <div class="dash-section">
+        <div class="dash-title">Monthly total (last ${months.length})</div>
+        ${months.map(m=>{
+          const pct = Math.min(100, (Math.abs(m.total)/maxMonthAbs)*50);
+          const isPos = m.total>=0;
+          return `<div class="bar-row">
+            <div class="bar-label">${m.label}</div>
+            <div class="bar-track">
+              <div class="bar-fill ${isPos?'':'from-center'}" style="
+                ${isPos ? `left:50%; width:${pct}%;` : `right:50%; width:${pct}%;`}
+                background:${isPos?'var(--gain)':'var(--loss)'};"></div>
+            </div>
+            <div class="bar-val num ${isPos?'pos':'neg'}">${money(m.total)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  loadCurrency();
+  loadEntries();
+})();
+</script>
+</body>
+</html>
